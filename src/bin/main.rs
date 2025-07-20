@@ -11,6 +11,7 @@ use embedded_graphics::draw_target::DrawTarget;
 use embedded_graphics::prelude::*;
 use embedded_graphics::prelude::RgbColor;
 use embedded_graphics::primitives::Rectangle;
+use embedded_graphics::primitives::Line;
 
 use embedded_text::style::TextBoxStyleBuilder;
 use embedded_text::TextBox;
@@ -185,11 +186,10 @@ async fn render_splash(mut display: LilkaDisplay) {
 }
 
 use embedded_graphics::{
-    mono_font::{ascii::FONT_6X9},
     // pixelcolor::PixelColor,
     // pixelcolor::BinaryColor,
     prelude::*,
-    primitives::{Circle, PrimitiveStyle, Triangle},
+    primitives::{PrimitiveStyle},
     text::Text,
 };
 use embedded_layout::{layout::linear::LinearLayout, prelude::*};
@@ -198,7 +198,7 @@ pub struct Header {
     bounds: Rectangle,
 }
 impl Header {
-    /// The progress bar has a configurable position and size
+    /// The header has a configurable position and size
     fn new(position: Point, size: Size) -> Self {
         Self {
             bounds: Rectangle::new(position, size),
@@ -226,32 +226,31 @@ impl Drawable for Header {
     fn draw<D: DrawTarget<Color = Rgb565>>(&self, display: &mut D) -> Result<(), D::Error> {
         // Create styles
         let color = Rgb565::new(51, 255, 153);
-        let border_style = PrimitiveStyle::with_stroke(color, 1);
+        let line_style = PrimitiveStyle::with_stroke(color, 1);
 
-        // Create a 1px border
-        let border = self.bounds.into_styled(border_style);
+        // Create only a bottom line for the header
+        let bottom_left = Point::new(self.bounds.top_left.x, self.bounds.top_left.y + self.bounds.size.height as i32 - 1);
+        let bottom_right = Point::new(self.bounds.top_left.x + self.bounds.size.width as i32, self.bounds.top_left.y + self.bounds.size.height as i32 - 1);
+        let bottom_line = Line::new(bottom_left, bottom_right).into_styled(line_style);
 
         let font = FONT_10X20;
         let char_color = Rgb565::new(51, 255, 153);
         let text_style = MonoTextStyle::new(&font, char_color);
 
         // Primitives to be displayed
-        let text = Text::new("00:00", Point::zero(), text_style);
+        let time = Text::new("00:00", Point::zero(), text_style)
+            .align_to(&self.bounds, horizontal::Left, vertical::Center)
+            .translate(Point::new(20, 0));
 
-        let time = text 
-            .align_to(&border, horizontal::Left, vertical::Center)
-            .translate(Point::new(5, 0));
+        let battery = Text::new("100%", Point::zero(), text_style)
+            .align_to(&self.bounds, horizontal::Right, vertical::Center)
+            .translate(Point::new(-20, 0));
 
-        let battery = text 
-            .align_to(&border, horizontal::Right, vertical::Center)
-            .translate(Point::new(-5, 0));
+        let header_center = Text::new("Lilka", Point::zero(), text_style)
+            .align_to(&self.bounds, horizontal::Center, vertical::Center);
 
-        let header_center = text 
-            .align_to(&border, horizontal::Center, vertical::Center)
-            .translate(Point::new(10, 0));
-
-        // Draw views
-        border.draw(display)?;
+        // Draw views - only the bottom line and text
+        bottom_line.draw(display)?;
         time.draw(display)?;
         battery.draw(display)?;
         header_center.draw(display)?;
@@ -265,15 +264,8 @@ async fn render_splash_v2(mut display: LilkaDisplay) {
     // Create a Rectangle from the display's dimensions
     let display_area = display.bounding_box();
 
-    // Style objects
-    let font = FONT_10X20;
-    let char_color = Rgb565::new(51, 255, 153);
-    let text_style = MonoTextStyle::new(&font, char_color);
-
-    // Primitives to be displayed
-    let text = Text::new("00:00", Point::zero(), text_style);
-
-    let header = Header::new(Point::new(0, 0), Size::new(display_area.size().width, 20));
+    let header = Header::new(Point::new(0, 0), Size::new(display_area.size().width, 30)); // Header with 30px height
+    // let menu = Menu::new();
 
     // The layout
     // Header
@@ -281,24 +273,12 @@ async fn render_splash_v2(mut display: LilkaDisplay) {
     // menu view
     // menu items
     LinearLayout::vertical(
-        Chain::new(
-            header,
-            // LinearLayout::horizontal(Chain::new(header)).arrange()
-        )
-            // .append(LinearLayout::horizontal(Chain::new(triangle).append(circle)).arrange())
-            // .append(LinearLayout::horizontal(Chain::new(triangle).append(circle)).arrange())
-            // .append(LinearLayout::horizontal(Chain::new(triangle).append(circle)).arrange())
-            // .append(LinearLayout::horizontal(Chain::new(triangle).append(circle)).arrange())
-            // .append(LinearLayout::horizontal(Chain::new(triangle).append(circle)).arrange())
-            // .append(LinearLayout::horizontal(Chain::new(triangle).append(circle)).arrange())
-            // .append(
-            //     Chain::new(triangle2.align_to(&circle2, horizontal::Center, vertical::Top))
-            //         .append(circle2),
-            // ),
+        Chain::new(header)
+        // .append(menu)
     )
     .with_alignment(horizontal::Center)
     .arrange()
-    .align_to(&display_area, horizontal::Center, vertical::Center)
+    .align_to(&display_area, horizontal::Center, vertical::Top)
     .draw(&mut display)
     .unwrap();
     // loop {
