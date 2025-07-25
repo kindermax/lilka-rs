@@ -8,4 +8,5 @@ pub enum ButtonEvent {
     Left,
     Right,
     A,
+    B,
 }

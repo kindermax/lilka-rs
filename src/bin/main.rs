@@ -4,6 +4,7 @@
 use core::cell::RefCell;
 
 use embedded_graphics::geometry::AnchorPoint;
+use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::draw_target::DrawTarget;
 use embedded_graphics::prelude::*;
@@ -11,7 +12,10 @@ use embedded_graphics::prelude::RgbColor;
 use embedded_graphics::primitives::PrimitiveStyleBuilder;
 
 use embedded_graphics::primitives::StrokeAlignment;
-use embedded_menu::interaction::Action;
+use embedded_graphics::text::Text;
+use embedded_layout::align::horizontal;
+use embedded_layout::align::vertical;
+use embedded_layout::prelude::*;
 use embedded_menu::interaction::Interaction;
 use embedded_menu::interaction::Navigation;
 
@@ -29,12 +33,14 @@ use esp_hal::gpio::Pull;
 use esp_hal::time::Rate;
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{Input, InputConfig, Level, NoPin, Output, OutputConfig};
-use esp_hal::spi::master::{Spi, Config};
+use esp_hal::spi::master::Spi;
 use esp_hal::{spi, Blocking};
 
 use lilka_rs::menu::create_header;
 use lilka_rs::menu::create_menu;
 use lilka_rs::menu::render_menu;
+use lilka_rs::menu::Header;
+use lilka_rs::menu::MainMenu;
 use lilka_rs::menu::Screen;
 use lilka_rs::state::ButtonEvent;
 use lilka_rs::state::BUTTON_CHANNEL_SIZE;
@@ -122,7 +128,6 @@ async fn main(spawner: Spawner) {
             }
         };
 
-    // display.set_orientation(Orientation::new().rotate(Rotation::Deg270));
     display.clear(Rgb565::BLACK).unwrap();
 
     info!("Display initialized");
@@ -143,6 +148,7 @@ async fn main(spawner: Spawner) {
     spawner.spawn(button_handler(left, ButtonEvent::Left, BUTTON_CHANNEL.sender())).unwrap();
     spawner.spawn(button_handler(right, ButtonEvent::Right, BUTTON_CHANNEL.sender())).unwrap();
     spawner.spawn(button_handler(a, ButtonEvent::A, BUTTON_CHANNEL.sender())).unwrap();
+    spawner.spawn(button_handler(b, ButtonEvent::B, BUTTON_CHANNEL.sender())).unwrap();
     spawner.spawn(ui_task(display, BUTTON_CHANNEL.receiver())).unwrap();
 }
 
@@ -156,10 +162,8 @@ async fn button_handler(
         // button.wait_for_any_edge().await;
         button.wait_for_falling_edge().await;
         if button.is_low() {
-            info!("button pressed {:?}", event);
             // button pressed
             sender.send(event).await;
-            info!("button sent");
         }
         // Debounce: ignore further edges for 50ms
         Timer::after(Duration::from_millis(50)).await;
@@ -196,26 +200,74 @@ async fn ui_task(
     loop {
         let event = receiver.receive().await;
         info!("event: {:?}", event);
-        match event {
-            ButtonEvent::Down => {
-                menu.interact(Interaction::Navigation(Navigation::Next));
-                render_menu(&mut display, &mut menu).await;
-            }
-            ButtonEvent::Up => {
+
+        screen = match (screen, event) {
+            (Screen::MainMenu { idx }, ButtonEvent::Up) => {
                 menu.interact(Interaction::Navigation(Navigation::Previous));
-                render_menu(&mut display, &mut menu).await;
-            }
-            ButtonEvent::Left => {
-                menu.interact(Interaction::Action(Action::Select));
-                render_menu(&mut display, &mut menu).await;
-            }
-            ButtonEvent::Right => {
-                menu.interact(Interaction::Action(Action::Select));
-                render_menu(&mut display, &mut menu).await;
-            }
-            ButtonEvent::A => {
-                display.clear(Rgb565::BLACK).unwrap();
-            }
+                Screen::MainMenu { idx: idx.saturating_sub(1) }
+            },
+            (Screen::MainMenu { idx }, ButtonEvent::Down) => {
+                // TODO: we can use native embedded_menu navigation machinery here, with actions and selection
+                ///  try refactor
+                menu.interact(Interaction::Navigation(Navigation::Next));
+                let max = 1; // two itens in menu: info and wifi
+                Screen::MainMenu { idx: (idx + 1) % (max + 1) }
+            },
+            (Screen::MainMenu { idx }, ButtonEvent::Right | ButtonEvent::A) => match idx {
+                0 => Screen::Info,
+                1 => Screen::Wifi,
+                _ => Screen::MainMenu { idx },
+            },
+            // For any screen, if we press B, we go back to main menu
+            // TODO: what if we already in main menu?
+            (s, ButtonEvent::B) => {
+                Screen::MainMenu { idx: 0 }
+            },
+            (s, _) => s, // ignore other inputs in sub‐screens
+        };
+
+        render_screen(&mut display, screen, &mut menu, &mut header).await;
+    }
+}
+
+use embedded_graphics::mono_font::iso_8859_10::FONT_10X20;
+
+async fn render_screen(display: &mut LilkaDisplay, screen: Screen, menu: &mut MainMenu, header: &mut Header) {
+    match screen {
+        Screen::MainMenu { .. } => {
+            render_menu(display, menu).await;
+        }
+        Screen::Info => {
+            display.clear(Rgb565::BLACK).unwrap();
+            header.draw(display).unwrap();
+            render_info(display).await;
+        }
+        Screen::Wifi => {
+            display.clear(Rgb565::BLACK).unwrap();
+            header.draw(display).unwrap();
+            render_wifi(display).await;
         }
     }
+}
+
+async fn render_info(display: &mut LilkaDisplay) {
+    let display_area = display.bounding_box();
+
+    let text_style = MonoTextStyle::new(&FONT_10X20, Rgb565::new(255, 255, 255));
+
+    Text::new("Info!", Point::zero(), text_style)
+        .align_to(&display_area, horizontal::Center, vertical::Center)
+        .draw(display)
+        .unwrap();
+}
+
+async fn render_wifi(display: &mut LilkaDisplay) {
+    let display_area = display.bounding_box();
+
+    let text_style = MonoTextStyle::new(&FONT_10X20, Rgb565::new(255, 255, 255));
+
+    Text::new("Wifi!", Point::zero(), text_style)
+        .align_to(&display_area, horizontal::Center, vertical::Center)
+        .draw(display)
+        .unwrap();
 }

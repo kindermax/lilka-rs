@@ -148,7 +148,7 @@ impl<'a> Dimensions for MenuDisplay<'a> {
     }
 }
 
-type MainMenu = Menu<
+pub type MainMenu = Menu<
     &'static str,
     Programmed,
     embedded_layout::prelude::Chain<
