@@ -3,39 +3,41 @@
 
 use core::cell::RefCell;
 
-use embedded_graphics::mono_font::MonoTextStyle;
-use embedded_graphics::mono_font::iso_8859_10::FONT_10X20;
-// use embedded_graphics::mono_font::iso_8859_5::FONT_9X18_BOLD;
+use embedded_graphics::geometry::AnchorPoint;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::draw_target::DrawTarget;
 use embedded_graphics::prelude::*;
 use embedded_graphics::prelude::RgbColor;
-use embedded_graphics::primitives::Rectangle;
-use embedded_graphics::primitives::Line;
+use embedded_graphics::primitives::PrimitiveStyleBuilder;
 
-use embedded_text::style::TextBoxStyleBuilder;
-use embedded_text::TextBox;
+use embedded_graphics::primitives::StrokeAlignment;
+use embedded_menu::interaction::Action;
+use embedded_menu::interaction::Interaction;
+use embedded_menu::interaction::Navigation;
 
-// use esp_hal_embassy::init;
 use embassy_executor::Spawner;
 use embassy_time::{Delay, Duration, Timer};
-// TODO: why blocking ?
-use embassy_embedded_hal::shared_bus::blocking::spi::{SpiDevice, SpiDeviceWithConfig};
-// use embedded_hal_bus::spi::ExclusiveDevice;
-use embassy_sync::blocking_mutex::{NoopMutex, raw::NoopRawMutex};
+use embassy_embedded_hal::shared_bus::blocking::spi::{SpiDevice};
+
+use embassy_sync::channel::{Channel, Receiver, Sender};
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::blocking_mutex::{NoopMutex};
 
 use esp_backtrace as _;
 
+use esp_hal::gpio::Pull;
 use esp_hal::time::Rate;
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{Input, InputConfig, Level, NoPin, Output, OutputConfig};
-use esp_hal::ledc::{self, Ledc};
-// use esp_hal::peripherals::SPI2;
 use esp_hal::spi::master::{Spi, Config};
 use esp_hal::{spi, Blocking};
-use esp_hal::timer::systimer::SystemTimer;
 
-use mipidsi::{Display, NoResetPin};
+use lilka_rs::menu::create_header;
+use lilka_rs::menu::create_menu;
+use lilka_rs::menu::render_menu;
+use lilka_rs::menu::Screen;
+use lilka_rs::state::ButtonEvent;
+use lilka_rs::state::BUTTON_CHANNEL_SIZE;
 use mipidsi::interface::SpiInterface;
 use mipidsi::options::{ColorInversion, Orientation, RefreshOrder, Rotation};
 use mipidsi::Builder;
@@ -43,15 +45,23 @@ use mipidsi::models::ST7789;
 
 use log::info;
 
-// TODO: replace with crate::
+use static_cell::StaticCell;
+
 use lilka_rs::buzzer::Buzzer;
 use lilka_rs::music::{Song, songs::startup};
-use static_cell::StaticCell;
+use lilka_rs::display::LilkaDisplay;
 
 extern crate alloc;
 
 static SPI_BUS: StaticCell<NoopMutex<RefCell<Spi<'static, Blocking>>>> = StaticCell::new();
 static DISPLAY_BUFFER: StaticCell<[u8; 512]> = StaticCell::new();
+
+
+// Create a channel for button events
+static BUTTON_CHANNEL: Channel<CriticalSectionRawMutex, ButtonEvent, BUTTON_CHANNEL_SIZE> = Channel::new();
+
+// up, down, left, right, a, b, c, d
+const BUTTON_COUNT: usize = 8;
 
 #[esp_hal_embassy::main]
 async fn main(spawner: Spawner) {
@@ -62,24 +72,12 @@ async fn main(spawner: Spawner) {
     let peripherals = esp_hal::init(config);
 
     esp_alloc::heap_allocator!(size: 72 * 1024);
-    //fff
     use esp_hal::timer::timg::TimerGroup;
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     esp_hal_embassy::init(timg0.timer0);
-    ///fff
-
-    // let timer0 = SystemTimer::new(peripherals.SYSTIMER);
-    // esp_hal_embassy::init(timer0.alarm0);
 
     info!("Embassy initialized!");
-
-    // let mut ledc = Ledc::new(peripherals.LEDC);
-    // ledc.set_global_slow_clock(ledc::LSGlobalClkSource::APBClk);
-
-    // let mut buzzer = Buzzer::new(peripherals.GPIO11);
-    // let song = Song::new(startup::TEMPO, &startup::MELODY);
-    // buzzer.play_song(&song, &mut ledc).await;
 
     // Turn on screen backlight
     Output::new(peripherals.GPIO46, Level::High, OutputConfig::default()).set_high();
@@ -129,160 +127,95 @@ async fn main(spawner: Spawner) {
 
     info!("Display initialized");
 
-    // render_splash(display).await;
-    render_splash_v2(display).await;
+    let controls_config = InputConfig::default().with_pull(Pull::Up);
 
-    // loop {
-    //     Timer::after_millis(10u64).await;
-    //     text_box.draw(&mut display).unwrap();
-    //     info!("Text drawn");
-    // }
-    // executor.run(|spawn| {
-    // spawner.spawn(run(display)).unwrap();
-    // });
+    let up = Input::new(peripherals.GPIO38, controls_config);
+    let down = Input::new(peripherals.GPIO41, controls_config);
+    let left = Input::new(peripherals.GPIO39, controls_config);
+    let right = Input::new(peripherals.GPIO40, controls_config);
+    let a = Input::new(peripherals.GPIO5, controls_config);
+    let b = Input::new(peripherals.GPIO6, controls_config);
+    let c = Input::new(peripherals.GPIO10, controls_config);
+    let d = Input::new(peripherals.GPIO9, controls_config);
 
-    loop {}
+    spawner.spawn(button_handler(up, ButtonEvent::Up, BUTTON_CHANNEL.sender())).unwrap();
+    spawner.spawn(button_handler(down, ButtonEvent::Down, BUTTON_CHANNEL.sender())).unwrap();
+    spawner.spawn(button_handler(left, ButtonEvent::Left, BUTTON_CHANNEL.sender())).unwrap();
+    spawner.spawn(button_handler(right, ButtonEvent::Right, BUTTON_CHANNEL.sender())).unwrap();
+    spawner.spawn(button_handler(a, ButtonEvent::A, BUTTON_CHANNEL.sender())).unwrap();
+    spawner.spawn(ui_task(display, BUTTON_CHANNEL.receiver())).unwrap();
 }
 
-type LilkaDisplay = Display<
-    SpiInterface<
-        'static,
-        SpiDevice<'static, NoopRawMutex, Spi<'static, Blocking>, Output<'static>>,
-        // ExclusiveDevice<Spi<'static, Blocking>, Output<'static>, Delay>,
-        Output<'static>
-    >,
-    ST7789,
-    Output<'static>,
-    // NoResetPin,
->;
+#[embassy_executor::task(pool_size = BUTTON_COUNT)]
+async fn button_handler(
+    mut button: Input<'static>,
+    event: ButtonEvent,
+    sender: Sender<'static, CriticalSectionRawMutex, ButtonEvent, BUTTON_CHANNEL_SIZE>
+) {
+    loop {
+        // button.wait_for_any_edge().await;
+        button.wait_for_falling_edge().await;
+        if button.is_low() {
+            info!("button pressed {:?}", event);
+            // button pressed
+            sender.send(event).await;
+            info!("button sent");
+        }
+        // Debounce: ignore further edges for 50ms
+        Timer::after(Duration::from_millis(50)).await;
+        // Wait until release (rising edge) before next loop
+        button.wait_for_rising_edge().await;
+    }
+}
 
 #[embassy_executor::task]
-async fn run(mut display: LilkaDisplay) {
+async fn ui_task(
+    mut display: LilkaDisplay,
+    receiver: Receiver<'static, CriticalSectionRawMutex, ButtonEvent, BUTTON_CHANNEL_SIZE>,
+) {
+    let border_stroke = PrimitiveStyleBuilder::new()
+        .stroke_color(Rgb565::new(255, 255, 255))
+        .stroke_width(3)
+        .stroke_alignment(StrokeAlignment::Inside)
+        .build();
+    display
+        .bounding_box()
+        .resized(Size::new(240, 240), AnchorPoint::Center)
+        .into_styled(border_stroke)
+        .draw(&mut display).unwrap();
 
-    render_splash(display).await;
-}
+    let mut screen = Screen::MainMenu { idx: 0 };
 
-async fn render_splash(mut display: LilkaDisplay) {
-    let char_color = Rgb565::new(51, 255, 153);
-    let char_style = MonoTextStyle::new(&FONT_10X20, char_color);
-    let textbox_style = TextBoxStyleBuilder::new()
-    .height_mode(embedded_text::style::HeightMode::FitToText)
-    .alignment(embedded_text::alignment::HorizontalAlignment::Center)
-    .vertical_alignment(embedded_text::alignment::VerticalAlignment::Middle)
-    .build();
+    let mut header = create_header(display.bounding_box());
+    header.draw(&mut display).unwrap();
 
-    let bounds = Rectangle::new(
-        Point::new(0, 130), Size::new(280, 0)
-    );
+    let mut menu = create_menu();
+    render_menu(&mut display, &mut menu).await;
 
-    let start_text = "Lilka-rs XXX YYY";
-
-    let text_box = TextBox::with_textbox_style(start_text, bounds, char_style, textbox_style);
-
+    // Handle button events
     loop {
-        Timer::after_millis(10u64).await;
-        text_box.draw(&mut display).unwrap();
-    }
-}
-
-use embedded_graphics::{
-    // pixelcolor::PixelColor,
-    // pixelcolor::BinaryColor,
-    prelude::*,
-    primitives::{PrimitiveStyle},
-    text::Text,
-};
-use embedded_layout::{layout::linear::LinearLayout, prelude::*};
-
-pub struct Header {
-    bounds: Rectangle,
-}
-impl Header {
-    /// The header has a configurable position and size
-    fn new(position: Point, size: Size) -> Self {
-        Self {
-            bounds: Rectangle::new(position, size),
+        let event = receiver.receive().await;
+        info!("event: {:?}", event);
+        match event {
+            ButtonEvent::Down => {
+                menu.interact(Interaction::Navigation(Navigation::Next));
+                render_menu(&mut display, &mut menu).await;
+            }
+            ButtonEvent::Up => {
+                menu.interact(Interaction::Navigation(Navigation::Previous));
+                render_menu(&mut display, &mut menu).await;
+            }
+            ButtonEvent::Left => {
+                menu.interact(Interaction::Action(Action::Select));
+                render_menu(&mut display, &mut menu).await;
+            }
+            ButtonEvent::Right => {
+                menu.interact(Interaction::Action(Action::Select));
+                render_menu(&mut display, &mut menu).await;
+            }
+            ButtonEvent::A => {
+                display.clear(Rgb565::BLACK).unwrap();
+            }
         }
     }
-}
-
-impl View for Header {
-    #[inline]
-    fn translate_impl(&mut self, by: Point) {
-        // make sure you don't accidentally call `translate`!
-        <Rectangle as embedded_graphics::prelude::Transform>::translate_mut(&mut self.bounds, by);
-    }
-
-    #[inline]
-    fn bounds(&self) -> Rectangle {
-        self.bounds
-    }
-}
-
-impl Drawable for Header {
-    type Color = Rgb565;
-    type Output = ();
-
-    fn draw<D: DrawTarget<Color = Rgb565>>(&self, display: &mut D) -> Result<(), D::Error> {
-        // Create styles
-        let color = Rgb565::new(51, 255, 153);
-        let line_style = PrimitiveStyle::with_stroke(color, 1);
-
-        // Create only a bottom line for the header
-        let bottom_left = Point::new(self.bounds.top_left.x, self.bounds.top_left.y + self.bounds.size.height as i32 - 1);
-        let bottom_right = Point::new(self.bounds.top_left.x + self.bounds.size.width as i32, self.bounds.top_left.y + self.bounds.size.height as i32 - 1);
-        let bottom_line = Line::new(bottom_left, bottom_right).into_styled(line_style);
-
-        let font = FONT_10X20;
-        let char_color = Rgb565::new(51, 255, 153);
-        let text_style = MonoTextStyle::new(&font, char_color);
-
-        // Primitives to be displayed
-        let time = Text::new("00:00", Point::zero(), text_style)
-            .align_to(&self.bounds, horizontal::Left, vertical::Center)
-            .translate(Point::new(20, 0));
-
-        let battery = Text::new("100%", Point::zero(), text_style)
-            .align_to(&self.bounds, horizontal::Right, vertical::Center)
-            .translate(Point::new(-20, 0));
-
-        let header_center = Text::new("Lilka", Point::zero(), text_style)
-            .align_to(&self.bounds, horizontal::Center, vertical::Center);
-
-        // Draw views - only the bottom line and text
-        bottom_line.draw(display)?;
-        time.draw(display)?;
-        battery.draw(display)?;
-        header_center.draw(display)?;
-
-        Ok(())
-    }
-}
-
-
-async fn render_splash_v2(mut display: LilkaDisplay) {
-    // Create a Rectangle from the display's dimensions
-    let display_area = display.bounding_box();
-
-    let header = Header::new(Point::new(0, 0), Size::new(display_area.size().width, 30)); // Header with 30px height
-    // let menu = Menu::new();
-
-    // The layout
-    // Header
-    // line
-    // menu view
-    // menu items
-    LinearLayout::vertical(
-        Chain::new(header)
-        // .append(menu)
-    )
-    .with_alignment(horizontal::Center)
-    .arrange()
-    .align_to(&display_area, horizontal::Center, vertical::Top)
-    .draw(&mut display)
-    .unwrap();
-    // loop {
-    //     Timer::after_millis(10u64).await;
-    //     text_box.draw(&mut display).unwrap();
-    // }
 }

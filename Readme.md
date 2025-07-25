@@ -27,4 +27,4 @@ code .
 2. Press and hold Select button 
 3. Turn on the board (switch or connect usb)
 4. Flush using probe-rs `cargo build && cargo flash --chip esp32s3` command 
-    or espflush `cargo run`
+    or espflush `cargo run` or `cargo run -- --port /dev/cu.usbmodem112201` if want to specify port
