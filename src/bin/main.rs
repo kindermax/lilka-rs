@@ -5,68 +5,83 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 
 use embassy_executor::Spawner;
-use embassy_time::{Duration, Timer};
-use embassy_sync::channel::{Channel, Receiver, Sender};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::channel::{Channel, Receiver, Sender};
+use embassy_time::{Duration, Timer};
 
-use esp_backtrace as _;
-use esp_hal::gpio::Input;
-use log::info;
 use embedded_graphics::prelude::Dimensions;
+use esp_backtrace as _;
+use log::info;
 
 use lilka_rs::board::Board;
+use lilka_rs::display::LilkaDisplay;
+use lilka_rs::input::{get_events, ButtonSet, InputPins};
 use lilka_rs::state::ButtonEvent;
 use lilka_rs::state::BUTTON_CHANNEL_SIZE;
-use lilka_rs::display::LilkaDisplay;
-use lilka_rs::ui::{Screen, Transition};
 use lilka_rs::ui::screens::MenuScreen;
+use lilka_rs::ui::{Clock, Screen, Transition, UIState};
 
 extern crate alloc;
 
 // Create a channel for button events
-static BUTTON_CHANNEL: Channel<CriticalSectionRawMutex, ButtonEvent, BUTTON_CHANNEL_SIZE> = Channel::new();
-
-// up, down, left, right, a, b, c, d
-const BUTTON_COUNT: usize = 8;
+static BUTTON_CHANNEL: Channel<CriticalSectionRawMutex, ButtonEvent, BUTTON_CHANNEL_SIZE> =
+    Channel::new();
 
 #[esp_hal_embassy::main]
 async fn main(spawner: Spawner) {
     esp_println::logger::init_logger_from_env();
 
-    // Initialize Hardware via the Board abstraction
+    // Initialize Hardware
     let board = Board::init();
     info!("Hardware initialized!");
 
-    // Spawn Input Handlers
-    let sender = BUTTON_CHANNEL.sender();
-    spawner.spawn(button_handler(board.up, ButtonEvent::Up, sender)).unwrap();
-    spawner.spawn(button_handler(board.down, ButtonEvent::Down, sender)).unwrap();
-    spawner.spawn(button_handler(board.left, ButtonEvent::Left, sender)).unwrap();
-    spawner.spawn(button_handler(board.right, ButtonEvent::Right, sender)).unwrap();
-    spawner.spawn(button_handler(board.a, ButtonEvent::A, sender)).unwrap();
-    spawner.spawn(button_handler(board.b, ButtonEvent::B, sender)).unwrap();
+    // Group pins for the single input scanner
+    let pins = InputPins {
+        up: board.up,
+        down: board.down,
+        left: board.left,
+        right: board.right,
+        a: board.a,
+        b: board.b,
+        c: board.c,
+        d: board.d,
+    };
+
+    // Spawn Single Input System
+    spawner
+        .spawn(input_task(pins, BUTTON_CHANNEL.sender()))
+        .unwrap();
 
     // Spawn UI System
-    spawner.spawn(ui_task(board.display, BUTTON_CHANNEL.receiver())).unwrap();
+    spawner
+        .spawn(ui_task(board.display, BUTTON_CHANNEL.receiver()))
+        .unwrap();
 
     loop {
         Timer::after(Duration::from_secs(60)).await;
     }
 }
 
-#[embassy_executor::task(pool_size = BUTTON_COUNT)]
-async fn button_handler(
-    mut button: Input<'static>,
-    event: ButtonEvent,
-    sender: Sender<'static, CriticalSectionRawMutex, ButtonEvent, BUTTON_CHANNEL_SIZE>
+#[embassy_executor::task]
+async fn input_task(
+    pins: InputPins,
+    sender: Sender<'static, CriticalSectionRawMutex, ButtonEvent, BUTTON_CHANNEL_SIZE>,
 ) {
+    let mut last_state = ButtonSet(0);
+
     loop {
-        button.wait_for_falling_edge().await;
-        if button.is_low() {
-            sender.send(event).await;
+        let current_state = pins.read_all();
+
+        if current_state != last_state {
+            // Convert bitmask changes into UI events
+            for event in get_events(last_state, current_state) {
+                sender.send(event).await;
+            }
+            last_state = current_state;
         }
-        Timer::after(Duration::from_millis(50)).await;
-        button.wait_for_rising_edge().await;
+
+        // 20ms poll rate (50Hz) is plenty for UI and provides natural debouncing
+        Timer::after(Duration::from_millis(20)).await;
     }
 }
 
@@ -78,8 +93,16 @@ async fn ui_task(
     let mut stack: Vec<Box<dyn Screen>> = Vec::new();
     stack.push(Box::new(MenuScreen::new(display.bounding_box())));
 
+    let mut state = UIState {
+        clock: Clock {
+            hours: 1,
+            minutes: 30,
+            seconds: 0,
+        },
+    };
+
     if let Some(screen) = stack.last_mut() {
-        screen.draw(&mut display);
+        screen.draw(&mut display, &state);
     }
 
     loop {
@@ -94,7 +117,9 @@ async fn ui_task(
 
         match transition {
             Transition::Push(new_screen) => stack.push(new_screen),
-            Transition::Pop => { stack.pop(); },
+            Transition::Pop => {
+                stack.pop();
+            }
             Transition::Replace(new_screen) => {
                 stack.pop();
                 stack.push(new_screen);
@@ -103,10 +128,11 @@ async fn ui_task(
         }
 
         if let Some(screen) = stack.last_mut() {
-            screen.draw(&mut display);
+            screen.draw(&mut display, &state);
         } else {
             stack.push(Box::new(MenuScreen::new(display.bounding_box())));
-            stack.last_mut().unwrap().draw(&mut display);
+            stack.last_mut().unwrap().draw(&mut display, &state);
         }
     }
 }
+

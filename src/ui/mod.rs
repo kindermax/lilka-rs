@@ -1,9 +1,9 @@
 pub mod screens;
 pub mod widgets;
 
-use alloc::boxed::Box;
 use crate::display::LilkaDisplay;
 use crate::state::ButtonEvent;
+use alloc::boxed::Box;
 
 /// Transitions tell the navigator what to do after a screen update.
 pub enum Transition {
@@ -21,7 +21,17 @@ pub enum Transition {
 pub trait Screen {
     /// Handle input and return a transition.
     fn update(&mut self, event: ButtonEvent) -> Transition;
-    
+
     /// Draw the screen content.
-    fn draw(&mut self, display: &mut LilkaDisplay);
+    fn draw(&mut self, display: &mut LilkaDisplay, state: &UIState);
+}
+
+pub struct Clock {
+    pub hours: u8,
+    pub minutes: u8,
+    pub seconds: u8,
+}
+
+pub struct UIState {
+    pub clock: Clock,
 }

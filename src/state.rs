@@ -9,4 +9,6 @@ pub enum ButtonEvent {
     Right,
     A,
     B,
+    C,
+    D,
 }

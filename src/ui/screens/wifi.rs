@@ -1,13 +1,10 @@
 use crate::display::LilkaDisplay;
 use crate::state::ButtonEvent;
-use crate::ui::{Screen, Transition};
 use crate::ui::widgets::Header;
+use crate::ui::{Screen, Transition, UIState};
 use embedded_graphics::primitives::Rectangle;
 use embedded_graphics::{
-    mono_font::iso_8859_10::FONT_10X20,
-    mono_font::MonoTextStyle,
-    pixelcolor::Rgb565,
-    prelude::*,
+    mono_font::iso_8859_10::FONT_10X20, mono_font::MonoTextStyle, pixelcolor::Rgb565, prelude::*,
     text::Text,
 };
 use embedded_layout::prelude::*;
@@ -34,13 +31,16 @@ impl Screen for WifiScreen {
         }
     }
 
-    fn draw(&mut self, display: &mut LilkaDisplay) {
+    fn draw(&mut self, display: &mut LilkaDisplay, state: &UIState) {
         display.clear(Rgb565::BLACK).unwrap();
-        self.header.draw(display).unwrap();
+        self.header.draw(display, state).unwrap();
 
         let content_area = Rectangle::new(
             Point::new(0, 30),
-            Size::new(self.display_bounds.size.width, self.display_bounds.size.height - 30),
+            Size::new(
+                self.display_bounds.size.width,
+                self.display_bounds.size.height - 30,
+            ),
         );
 
         let text_style = MonoTextStyle::new(&FONT_10X20, Rgb565::WHITE);
@@ -50,3 +50,4 @@ impl Screen for WifiScreen {
             .unwrap();
     }
 }
+
