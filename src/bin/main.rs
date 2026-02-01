@@ -16,7 +16,7 @@ use log::info;
 use lilka_rs::board::Board;
 use lilka_rs::display::LilkaDisplay;
 use lilka_rs::input::{get_events, ButtonSet, InputPins};
-use lilka_rs::services::clock::ClockService;
+use lilka_rs::services::{network_task, ClockService};
 use lilka_rs::state::ButtonEvent;
 use lilka_rs::state::BUTTON_CHANNEL_SIZE;
 use lilka_rs::ui::screens::MenuScreen;
@@ -48,7 +48,9 @@ async fn main(spawner: Spawner) {
         d: board.d,
     };
 
-    let mut clock_service = ClockService::new(board.rtc);
+    let clock_service = ClockService::new(board.rtc);
+
+    spawner.spawn(network_task(board.wifi)).unwrap();
 
     // Spawn Single Input System
     spawner

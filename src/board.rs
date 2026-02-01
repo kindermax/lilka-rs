@@ -32,6 +32,7 @@ pub struct Board {
     pub b: Input<'static>,
     pub c: Input<'static>,
     pub d: Input<'static>,
+    pub wifi: esp_hal::peripherals::WIFI<'static>,
 }
 
 impl Board {
@@ -100,6 +101,7 @@ impl Board {
             b: Input::new(peripherals.GPIO6, controls_config),
             c: Input::new(peripherals.GPIO10, controls_config),
             d: Input::new(peripherals.GPIO9, controls_config),
+            wifi: peripherals.WIFI,
         }
     }
 }
