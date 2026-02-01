@@ -1,4 +1,4 @@
-#[allow(unused)] 
+#[allow(unused)]
 // Note frequencies in Hertz as f64
 pub const NOTE_B0: f64 = 31.0;
 pub const NOTE_C1: f64 = 33.0;
@@ -90,4 +90,3 @@ pub const NOTE_CS8: f64 = 4435.0;
 pub const NOTE_D8: f64 = 4699.0;
 pub const NOTE_DS8: f64 = 4978.0;
 pub const REST: f64 = 0.0; // No sound, for pauses
-

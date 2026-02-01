@@ -1,16 +1,12 @@
 use core::convert::Infallible;
 use core::ops::{Deref, DerefMut};
 
-use embedded_graphics::{
-    pixelcolor::Rgb565,
-    prelude::{DrawTarget},
-    primitives::{Rectangle},
-};
-use embedded_graphics::geometry::Dimensions;
 use embassy_embedded_hal::shared_bus::SpiDeviceError;
+use embedded_graphics::geometry::Dimensions;
+use embedded_graphics::{pixelcolor::Rgb565, prelude::DrawTarget, primitives::Rectangle};
 use mipidsi::interface::SpiError;
 
-use crate::{display::LilkaDisplay};
+use crate::display::LilkaDisplay;
 
 /// MenuDisplay is a wrapper around the display that allows us to draw the menu on it
 /// and also allows to specify the bounds of the menu
@@ -55,7 +51,8 @@ impl<'a> DrawTarget for MenuDisplay<'a> {
 
     fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
     where
-        I: IntoIterator<Item = embedded_graphics::Pixel<Self::Color>> {
+        I: IntoIterator<Item = embedded_graphics::Pixel<Self::Color>>,
+    {
         // Delegate to the underlying display using DerefMut
         self.deref_mut().draw_iter(pixels)
     }

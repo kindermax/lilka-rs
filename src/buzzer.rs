@@ -2,12 +2,11 @@ use embassy_time::{Duration, Timer};
 use esp_hal::{
     gpio::{GpioPin, Output, OutputConfig},
     ledc::{
-        timer::{self, TimerIFace},
         channel::{self, ChannelIFace},
-        Ledc,
-        LowSpeed
+        timer::{self, TimerIFace},
+        Ledc, LowSpeed,
     },
-    time::Rate
+    time::Rate,
 };
 
 use crate::music;
@@ -17,13 +16,9 @@ pub struct Buzzer {
 }
 
 impl Buzzer {
-    pub fn new(
-        pin: GpioPin<11>,
-    ) -> Self {
+    pub fn new(pin: GpioPin<11>) -> Self {
         let output_pin = Output::new(pin, esp_hal::gpio::Level::Low, OutputConfig::default());
-        Buzzer {
-            output_pin,
-        }
+        Buzzer { output_pin }
     }
 
     pub async fn play(&mut self, freq: f64, duration: u64, ledc: &mut Ledc<'_>) {

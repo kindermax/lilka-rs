@@ -1,18 +1,12 @@
 pub struct Song<'a> {
     whole_note: u32,
-    pub melody: &'a[(f64, i16)]
+    pub melody: &'a [(f64, i16)],
 }
 
 impl<'a> Song<'a> {
-    pub fn new(
-        tempo: u16,
-        melody: &'a [(f64, i16)],
-    ) -> Self {
+    pub fn new(tempo: u16, melody: &'a [(f64, i16)]) -> Self {
         let whole_note = (60_000 * 4) / tempo as u32;
-        Self {
-            whole_note,
-            melody,
-        }
+        Self { whole_note, melody }
     }
 
     pub fn calc_note_duration(&self, divider: i16) -> u32 {

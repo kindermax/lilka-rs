@@ -2,17 +2,17 @@ use core::cell::RefCell;
 use embassy_embedded_hal::shared_bus::blocking::spi::SpiDevice;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::blocking_mutex::NoopMutex;
+use embassy_time::Delay;
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{Input, InputConfig, Level, NoPin, Output, OutputConfig, Pull};
 use esp_hal::spi::master::Spi;
-use esp_hal::{spi, Blocking};
 use esp_hal::time::Rate;
 use esp_hal::timer::timg::TimerGroup;
+use esp_hal::{spi, Blocking};
 use mipidsi::interface::SpiInterface;
 use mipidsi::models::ST7789;
 use mipidsi::options::{ColorInversion, Orientation, RefreshOrder, Rotation};
 use mipidsi::Builder;
-use embassy_time::Delay;
 use static_cell::StaticCell;
 
 use crate::display::LilkaDisplay;
@@ -59,7 +59,8 @@ impl Board {
             .with_frequency(Rate::from_mhz(40))
             .with_mode(spi::Mode::_0);
 
-        let spi = Spi::new(peripherals.SPI2, spi_config).unwrap()
+        let spi = Spi::new(peripherals.SPI2, spi_config)
+            .unwrap()
             .with_cs(NoPin)
             .with_mosi(spi_mosi)
             .with_miso(NoPin)
@@ -82,7 +83,7 @@ impl Board {
 
         // 6. Buttons
         let controls_config = InputConfig::default().with_pull(Pull::Up);
-        
+
         Self {
             display,
             up: Input::new(peripherals.GPIO38, controls_config),
