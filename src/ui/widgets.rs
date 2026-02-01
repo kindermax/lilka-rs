@@ -1,4 +1,3 @@
-use chrono::Timelike;
 use core::fmt::Write;
 use embedded_graphics::mono_font::iso_8859_10::FONT_10X20;
 use embedded_graphics::{
@@ -13,6 +12,8 @@ use embedded_layout::{
     align::{horizontal, vertical, Align},
     View,
 };
+use jiff::tz::TimeZone;
+use jiff::{Timestamp, Unit};
 
 use crate::format;
 use crate::ui::UIState;
@@ -79,7 +80,7 @@ impl Header {
     where
         D: DrawTarget<Color = Rgb565>,
     {
-        let time = state.clock.timestamp.time();
+        let time = state.clock.timestamp.to_zoned(TimeZone::UTC);
 
         let time_text = format!(
             8,

@@ -1,24 +1,23 @@
 use embassy_time::{Duration, Timer};
 use esp_hal::{
-    gpio::{GpioPin, Output, OutputConfig},
     ledc::{
         channel::{self, ChannelIFace},
         timer::{self, TimerIFace},
         Ledc, LowSpeed,
     },
+    peripherals::GPIO11,
     time::Rate,
 };
 
 use crate::music;
 
 pub struct Buzzer {
-    output_pin: Output<'static>,
+    output_pin: GPIO11<'static>,
 }
 
 impl Buzzer {
-    pub fn new(pin: GpioPin<11>) -> Self {
-        let output_pin = Output::new(pin, esp_hal::gpio::Level::Low, OutputConfig::default());
-        Buzzer { output_pin }
+    pub fn new(pin: GPIO11<'static>) -> Self {
+        Buzzer { output_pin: pin }
     }
 
     pub async fn play(&mut self, freq: f64, duration: u64, ledc: &mut Ledc<'_>) {
@@ -31,12 +30,12 @@ impl Buzzer {
             })
             .unwrap();
 
-        let mut channel = ledc.channel(channel::Number::Channel0, &mut self.output_pin);
+        let mut channel = ledc.channel(channel::Number::Channel0, self.output_pin.reborrow());
         channel
             .configure(channel::config::Config {
                 timer: &lstimer0,
                 duty_pct: 50,
-                pin_config: channel::config::PinConfig::PushPull,
+                drive_mode: esp_hal::gpio::DriveMode::PushPull, // pin_config: channel::config::PinConfig::PushPull,
             })
             .unwrap();
 

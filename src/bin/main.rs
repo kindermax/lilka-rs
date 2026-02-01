@@ -16,6 +16,7 @@ use log::info;
 use lilka_rs::board::Board;
 use lilka_rs::display::LilkaDisplay;
 use lilka_rs::input::{get_events, ButtonSet, InputPins};
+use lilka_rs::services::clock::ClockService;
 use lilka_rs::state::ButtonEvent;
 use lilka_rs::state::BUTTON_CHANNEL_SIZE;
 use lilka_rs::ui::screens::MenuScreen;
@@ -27,7 +28,7 @@ extern crate alloc;
 static BUTTON_CHANNEL: Channel<CriticalSectionRawMutex, ButtonEvent, BUTTON_CHANNEL_SIZE> =
     Channel::new();
 
-#[esp_hal_embassy::main]
+#[esp_rtos::main]
 async fn main(spawner: Spawner) {
     esp_println::logger::init_logger_from_env();
 

@@ -1,4 +1,5 @@
 use esp_hal::rtc_cntl::Rtc;
+use jiff::Timestamp;
 
 // TODO: ntp ?
 pub struct ClockService {
@@ -16,11 +17,11 @@ impl ClockService {
     }
 
     /// Get the current time as a formatted string.
-    pub fn get_current_time(&self) -> chrono::NaiveDateTime {
-        self.rtc.current_time()
+    pub fn get_current_time(&self) -> Timestamp {
+        Timestamp::from_microsecond(self.rtc.current_time_us() as i64).unwrap()
     }
 
-    pub fn set_current_time(&mut self, datetime: chrono::NaiveDateTime) {
-        self.rtc.set_current_time(datetime);
+    pub fn set_current_time(&mut self, timestamp: u64) {
+        self.rtc.set_current_time_us(timestamp);
     }
 }

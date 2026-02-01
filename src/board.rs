@@ -1,10 +1,10 @@
 use core::cell::RefCell;
 use embassy_embedded_hal::shared_bus::blocking::spi::SpiDevice;
-// use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::blocking_mutex::NoopMutex;
 use embassy_time::Delay;
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{Input, InputConfig, Level, NoPin, Output, OutputConfig, Pull};
+use esp_hal::interrupt::software::SoftwareInterruptControl;
 use esp_hal::rtc_cntl::Rtc;
 use esp_hal::spi::master::Spi;
 use esp_hal::time::Rate;
@@ -43,9 +43,9 @@ impl Board {
         // 2. Initialize Heap (72 KB)
         esp_alloc::heap_allocator!(size: 72 * 1024);
 
-        // 3. Initialize Embassy Timer
+        // 3. Initialize Esp RTOS
         let timg0 = TimerGroup::new(peripherals.TIMG0);
-        esp_hal_embassy::init(timg0.timer0);
+        esp_rtos::start(timg0.timer0);
 
         // 4. Backlight
         Output::new(peripherals.GPIO46, Level::High, OutputConfig::default()).set_high();
@@ -86,7 +86,9 @@ impl Board {
         // 6. Buttons
         let controls_config = InputConfig::default().with_pull(Pull::Up);
 
+        // Rtc system
         let rtc = Rtc::new(peripherals.LPWR);
+
         Self {
             display,
             rtc,

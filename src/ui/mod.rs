@@ -28,7 +28,7 @@ pub trait Screen {
 
 #[derive(Default)]
 pub struct Clock {
-    pub timestamp: chrono::NaiveDateTime,
+    pub timestamp: jiff::Timestamp,
     pub hours: u8,
     pub minutes: u8,
     pub seconds: u8,
