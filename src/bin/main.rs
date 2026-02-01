@@ -17,9 +17,9 @@ use lilka_rs::board::Board;
 use lilka_rs::display::LilkaDisplay;
 use lilka_rs::input::{get_events, ButtonSet, InputPins};
 use lilka_rs::services::{network_task, ClockService};
-use lilka_rs::state::{ButtonEvent, UIEvent, UI_CHANNEL_SIZE};
+use lilka_rs::state::{UIEvent, UI_CHANNEL_SIZE};
 use lilka_rs::ui::screens::MenuScreen;
-use lilka_rs::ui::{Clock, Screen, Transition, UIState};
+use lilka_rs::ui::{Screen, Transition, UIState};
 
 extern crate alloc;
 
@@ -108,7 +108,7 @@ async fn input_task(
 #[embassy_executor::task]
 async fn ui_task(
     mut display: LilkaDisplay,
-    mut clock_service: ClockService,
+    clock_service: ClockService,
     receiver: Receiver<'static, CriticalSectionRawMutex, UIEvent, UI_CHANNEL_SIZE>,
 ) {
     let mut stack: Vec<Box<dyn Screen>> = Vec::new();
@@ -143,6 +143,9 @@ async fn ui_task(
             Transition::Push(new_screen) => stack.push(new_screen),
             Transition::Pop => {
                 stack.pop();
+                if let Some(screen) = stack.last_mut() {
+                    screen.ensure_redraw();
+                }
             }
             Transition::Replace(new_screen) => {
                 stack.pop();

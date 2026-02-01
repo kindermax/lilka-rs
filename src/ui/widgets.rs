@@ -3,7 +3,7 @@ use embedded_graphics::mono_font::iso_8859_10::FONT_10X20;
 use embedded_graphics::{
     mono_font::MonoTextStyle,
     pixelcolor::Rgb565,
-    prelude::{DrawTarget, Point, Primitive, Size},
+    prelude::{DrawTarget, Point, Primitive, RgbColor, Size},
     primitives::{Line, PrimitiveStyle, Rectangle},
     text::Text,
     Drawable,
@@ -13,7 +13,6 @@ use embedded_layout::{
     View,
 };
 use jiff::tz::TimeZone;
-use jiff::{Timestamp, Unit};
 
 use crate::format;
 use crate::ui::UIState;
@@ -27,7 +26,13 @@ pub struct Header {
 impl Header {
     pub fn new(display_area: Rectangle) -> Self {
         let color = Rgb565::new(51, 255, 153);
-        let text_style = MonoTextStyle::new(&FONT_10X20, color);
+        // Create a style with background color to ensure overwrites don't require clearing
+        let text_style = embedded_graphics::mono_font::MonoTextStyleBuilder::new()
+            .font(&FONT_10X20)
+            .text_color(color)
+            .background_color(Rgb565::BLACK)
+            .build();
+            
         Self {
             color,
             text_style,
@@ -70,13 +75,13 @@ impl Header {
             .translate(Point::new(-20, 0));
 
         bottom_line.draw(display)?;
-        self.draw_time(display, state)?;
+        self.draw_clock(display, state)?;
         battery.draw(display)?;
 
         Ok(())
     }
 
-    fn draw_time<D>(&self, display: &mut D, state: &UIState) -> Result<(), D::Error>
+    pub fn draw_clock<D>(&self, display: &mut D, state: &UIState) -> Result<(), D::Error>
     where
         D: DrawTarget<Color = Rgb565>,
     {
