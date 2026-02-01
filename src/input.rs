@@ -99,7 +99,6 @@ pub fn get_events(old: ButtonSet, new: ButtonSet) -> impl Iterator<Item = Button
     }
     if (changed & ButtonSet::D) != 0 {
         events[i] = Some(ButtonEvent::D);
-        i += 1;
     }
 
     events.into_iter().flatten()

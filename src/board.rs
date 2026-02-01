@@ -4,7 +4,6 @@ use embassy_sync::blocking_mutex::NoopMutex;
 use embassy_time::Delay;
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{Input, InputConfig, Level, NoPin, Output, OutputConfig, Pull};
-use esp_hal::interrupt::software::SoftwareInterruptControl;
 use esp_hal::rtc_cntl::Rtc;
 use esp_hal::spi::master::Spi;
 use esp_hal::time::Rate;

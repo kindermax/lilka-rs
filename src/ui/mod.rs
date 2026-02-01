@@ -24,6 +24,9 @@ pub trait Screen {
 
     /// Draw the screen content.
     fn draw(&mut self, display: &mut LilkaDisplay, state: &UIState);
+
+    /// Force the screen to redraw everything on the next `draw` call.
+    fn ensure_redraw(&mut self) {}
 }
 
 #[derive(Default)]

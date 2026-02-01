@@ -6,9 +6,8 @@ use crate::ui::{Screen, Transition, UIState};
 use alloc::boxed::Box;
 use embedded_graphics::primitives::Rectangle;
 
-use embedded_graphics::mono_font::iso_8859_10::FONT_10X20;
 use embedded_graphics::{pixelcolor::Rgb565, prelude::*};
-use embedded_layout::prelude::*;
+use embedded_graphics::mono_font::iso_8859_10::FONT_10X20;
 use embedded_menu::{
     interaction::{programmed::Programmed, Interaction, Navigation},
     items::MenuItem,
@@ -56,6 +55,8 @@ pub struct MenuScreen {
     header: Header,
     selected_idx: usize,
     display_bounds: Rectangle,
+    initial_draw: bool,
+    menu_dirty: bool,
 }
 
 impl MenuScreen {
@@ -76,6 +77,8 @@ impl MenuScreen {
             header: Header::new(display_bounds),
             selected_idx: 0,
             display_bounds,
+            initial_draw: true,
+            menu_dirty: true,
         }
     }
 }
@@ -87,12 +90,14 @@ impl Screen for MenuScreen {
                 self.menu
                     .interact(Interaction::Navigation(Navigation::Previous));
                 self.selected_idx = self.selected_idx.saturating_sub(1);
+                self.menu_dirty = true;
                 Transition::Stay
             }
             ButtonEvent::Down => {
                 self.menu
                     .interact(Interaction::Navigation(Navigation::Next));
                 self.selected_idx = (self.selected_idx + 1) % 2;
+                self.menu_dirty = true;
                 Transition::Stay
             }
             ButtonEvent::Right | ButtonEvent::A => match self.selected_idx {
@@ -105,9 +110,6 @@ impl Screen for MenuScreen {
     }
 
     fn draw(&mut self, display: &mut LilkaDisplay, state: &UIState) {
-        display.clear(Rgb565::BLACK).unwrap();
-        self.header.draw(display, state).unwrap();
-
         // Define the "Slot" for the menu: everything below the header
         let offset = Point::new(20, 50);
         let menu_area = Rectangle::new(
@@ -118,10 +120,34 @@ impl Screen for MenuScreen {
             ),
         );
 
-        // Use the MenuDisplay wrapper from crate::menu to provide clipping and relative positioning
-        let mut menu_display = crate::menu::MenuDisplay::new(display, menu_area);
+        if self.initial_draw {
+            display.clear(Rgb565::BLACK).unwrap();
+            self.header.draw(display, state).unwrap();
+            
+            let mut menu_display = crate::menu::MenuDisplay::new(display, menu_area);
+            self.menu.update(&menu_display);
+            self.menu.draw(&mut menu_display).unwrap();
+            
+            self.initial_draw = false;
+            self.menu_dirty = false;
+        } else {
+            // Always update the clock (it has its own background clearing for text)
+            self.header.draw_clock(display, state).unwrap();
 
-        self.menu.update(&menu_display);
-        self.menu.draw(&mut menu_display).unwrap();
+            if self.menu_dirty {
+                // Clear only the menu area
+                display.fill_solid(&menu_area, Rgb565::BLACK).unwrap();
+                
+                let mut menu_display = crate::menu::MenuDisplay::new(display, menu_area);
+                self.menu.update(&menu_display);
+                self.menu.draw(&mut menu_display).unwrap();
+                
+                self.menu_dirty = false;
+            }
+        }
+    }
+
+    fn ensure_redraw(&mut self) {
+        self.initial_draw = true;
     }
 }
