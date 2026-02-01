@@ -17,16 +17,14 @@ use lilka_rs::board::Board;
 use lilka_rs::display::LilkaDisplay;
 use lilka_rs::input::{get_events, ButtonSet, InputPins};
 use lilka_rs::services::{network_task, ClockService};
-use lilka_rs::state::ButtonEvent;
-use lilka_rs::state::BUTTON_CHANNEL_SIZE;
+use lilka_rs::state::{ButtonEvent, UIEvent, UI_CHANNEL_SIZE};
 use lilka_rs::ui::screens::MenuScreen;
 use lilka_rs::ui::{Clock, Screen, Transition, UIState};
 
 extern crate alloc;
 
-// Create a channel for button events
-static BUTTON_CHANNEL: Channel<CriticalSectionRawMutex, ButtonEvent, BUTTON_CHANNEL_SIZE> =
-    Channel::new();
+// Create a channel for UI events (buttons + ticks)
+static UI_CHANNEL: Channel<CriticalSectionRawMutex, UIEvent, UI_CHANNEL_SIZE> = Channel::new();
 
 #[esp_rtos::main]
 async fn main(spawner: Spawner) {
@@ -52,9 +50,12 @@ async fn main(spawner: Spawner) {
 
     spawner.spawn(network_task(board.wifi)).unwrap();
 
+    // Spawn tick task for 1-second UI updates
+    spawner.spawn(tick_task(UI_CHANNEL.sender())).unwrap();
+
     // Spawn Single Input System
     spawner
-        .spawn(input_task(pins, BUTTON_CHANNEL.sender()))
+        .spawn(input_task(pins, UI_CHANNEL.sender()))
         .unwrap();
 
     // Spawn UI System
@@ -62,7 +63,7 @@ async fn main(spawner: Spawner) {
         .spawn(ui_task(
             board.display,
             clock_service,
-            BUTTON_CHANNEL.receiver(),
+            UI_CHANNEL.receiver(),
         ))
         .unwrap();
 
@@ -72,9 +73,19 @@ async fn main(spawner: Spawner) {
 }
 
 #[embassy_executor::task]
+async fn tick_task(
+    sender: Sender<'static, CriticalSectionRawMutex, UIEvent, UI_CHANNEL_SIZE>,
+) {
+    loop {
+        Timer::after(Duration::from_secs(1)).await;
+        sender.send(UIEvent::Tick).await;
+    }
+}
+
+#[embassy_executor::task]
 async fn input_task(
     pins: InputPins,
-    sender: Sender<'static, CriticalSectionRawMutex, ButtonEvent, BUTTON_CHANNEL_SIZE>,
+    sender: Sender<'static, CriticalSectionRawMutex, UIEvent, UI_CHANNEL_SIZE>,
 ) {
     let mut last_state = ButtonSet(0);
 
@@ -84,7 +95,7 @@ async fn input_task(
         if current_state != last_state {
             // Convert bitmask changes into UI events
             for event in get_events(last_state, current_state) {
-                sender.send(event).await;
+                sender.send(UIEvent::Button(event)).await;
             }
             last_state = current_state;
         }
@@ -98,7 +109,7 @@ async fn input_task(
 async fn ui_task(
     mut display: LilkaDisplay,
     mut clock_service: ClockService,
-    receiver: Receiver<'static, CriticalSectionRawMutex, ButtonEvent, BUTTON_CHANNEL_SIZE>,
+    receiver: Receiver<'static, CriticalSectionRawMutex, UIEvent, UI_CHANNEL_SIZE>,
 ) {
     let mut stack: Vec<Box<dyn Screen>> = Vec::new();
     stack.push(Box::new(MenuScreen::new(display.bounding_box())));
@@ -111,13 +122,21 @@ async fn ui_task(
 
     loop {
         let event = receiver.receive().await;
-        info!("event: {:?}", event);
+
+        // Always update the clock
         state.clock.timestamp = clock_service.get_current_time();
 
-        let transition = if let Some(screen) = stack.last_mut() {
-            screen.update(event)
-        } else {
-            Transition::Stay
+        // Only process screen transitions on button events
+        let transition = match event {
+            UIEvent::Button(button_event) => {
+                info!("button: {:?}", button_event);
+                if let Some(screen) = stack.last_mut() {
+                    screen.update(button_event)
+                } else {
+                    Transition::Stay
+                }
+            }
+            UIEvent::Tick => Transition::Stay,
         };
 
         match transition {
