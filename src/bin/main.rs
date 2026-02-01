@@ -47,6 +47,8 @@ async fn main(spawner: Spawner) {
         d: board.d,
     };
 
+    let mut clock_service = ClockService::new(board.rtc);
+
     // Spawn Single Input System
     spawner
         .spawn(input_task(pins, BUTTON_CHANNEL.sender()))
@@ -54,7 +56,11 @@ async fn main(spawner: Spawner) {
 
     // Spawn UI System
     spawner
-        .spawn(ui_task(board.display, BUTTON_CHANNEL.receiver()))
+        .spawn(ui_task(
+            board.display,
+            clock_service,
+            BUTTON_CHANNEL.receiver(),
+        ))
         .unwrap();
 
     loop {
@@ -88,18 +94,13 @@ async fn input_task(
 #[embassy_executor::task]
 async fn ui_task(
     mut display: LilkaDisplay,
+    mut clock_service: ClockService,
     receiver: Receiver<'static, CriticalSectionRawMutex, ButtonEvent, BUTTON_CHANNEL_SIZE>,
 ) {
     let mut stack: Vec<Box<dyn Screen>> = Vec::new();
     stack.push(Box::new(MenuScreen::new(display.bounding_box())));
 
-    let mut state = UIState {
-        clock: Clock {
-            hours: 1,
-            minutes: 30,
-            seconds: 0,
-        },
-    };
+    let mut state = UIState::default();
 
     if let Some(screen) = stack.last_mut() {
         screen.draw(&mut display, &state);
@@ -108,6 +109,7 @@ async fn ui_task(
     loop {
         let event = receiver.receive().await;
         info!("event: {:?}", event);
+        state.clock.timestamp = clock_service.get_current_time();
 
         let transition = if let Some(screen) = stack.last_mut() {
             screen.update(event)

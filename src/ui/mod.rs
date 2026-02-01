@@ -26,12 +26,15 @@ pub trait Screen {
     fn draw(&mut self, display: &mut LilkaDisplay, state: &UIState);
 }
 
+#[derive(Default)]
 pub struct Clock {
+    pub timestamp: chrono::NaiveDateTime,
     pub hours: u8,
     pub minutes: u8,
     pub seconds: u8,
 }
 
+#[derive(Default)]
 pub struct UIState {
     pub clock: Clock,
 }

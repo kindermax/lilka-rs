@@ -1,10 +1,11 @@
 use core::cell::RefCell;
 use embassy_embedded_hal::shared_bus::blocking::spi::SpiDevice;
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
+// use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::blocking_mutex::NoopMutex;
 use embassy_time::Delay;
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{Input, InputConfig, Level, NoPin, Output, OutputConfig, Pull};
+use esp_hal::rtc_cntl::Rtc;
 use esp_hal::spi::master::Spi;
 use esp_hal::time::Rate;
 use esp_hal::timer::timg::TimerGroup;
@@ -22,6 +23,7 @@ static DISPLAY_BUFFER: StaticCell<[u8; 512]> = StaticCell::new();
 
 pub struct Board {
     pub display: LilkaDisplay,
+    pub rtc: Rtc<'static>,
     pub up: Input<'static>,
     pub down: Input<'static>,
     pub left: Input<'static>,
@@ -84,8 +86,10 @@ impl Board {
         // 6. Buttons
         let controls_config = InputConfig::default().with_pull(Pull::Up);
 
+        let rtc = Rtc::new(peripherals.LPWR);
         Self {
             display,
+            rtc,
             up: Input::new(peripherals.GPIO38, controls_config),
             down: Input::new(peripherals.GPIO41, controls_config),
             left: Input::new(peripherals.GPIO39, controls_config),

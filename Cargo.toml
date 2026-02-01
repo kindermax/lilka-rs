@@ -67,6 +67,7 @@ embedded-hal-bus = "0.3.0"
 embedded-hal = "1.0.0"
 embedded-layout = "0.4.2"
 embedded-menu = "0.6.1"
+chrono = { version = "0.4.43", default-features = false }
 
 [profile.dev]
 # Rust debug is too slow.

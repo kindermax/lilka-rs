@@ -1,5 +1,4 @@
-use crate::format;
-use crate::ui::UIState;
+use chrono::Timelike;
 use core::fmt::Write;
 use embedded_graphics::mono_font::iso_8859_10::FONT_10X20;
 use embedded_graphics::{
@@ -15,13 +14,22 @@ use embedded_layout::{
     View,
 };
 
+use crate::format;
+use crate::ui::UIState;
+
 pub struct Header {
+    color: Rgb565,
+    text_style: MonoTextStyle<'static, Rgb565>,
     bounds: Rectangle,
 }
 
 impl Header {
     pub fn new(display_area: Rectangle) -> Self {
+        let color = Rgb565::new(51, 255, 153);
+        let text_style = MonoTextStyle::new(&FONT_10X20, color);
         Self {
+            color,
+            text_style,
             bounds: Rectangle::new(Point::new(0, 0), Size::new(display_area.size().width, 30)),
         }
     }
@@ -44,8 +52,7 @@ impl Header {
     where
         D: DrawTarget<Color = Rgb565>,
     {
-        let color = Rgb565::new(51, 255, 153);
-        let line_style = PrimitiveStyle::with_stroke(color, 1);
+        let line_style = PrimitiveStyle::with_stroke(self.color, 1);
 
         let bottom_left = Point::new(
             self.bounds.top_left.x,
@@ -57,28 +64,37 @@ impl Header {
         );
         let bottom_line = Line::new(bottom_left, bottom_right).into_styled(line_style);
 
-        let text_style = MonoTextStyle::new(&FONT_10X20, color);
-
-        let time_text = format!(5, "{:02}:{:02}", state.clock.hours, state.clock.minutes);
-        let time = Text::new(&time_text, Point::zero(), text_style)
-            .align_to(&self.bounds, horizontal::Left, vertical::Center)
-            .translate(Point::new(20, 0));
-
-        let battery = Text::new("100%", Point::zero(), text_style)
+        let battery = Text::new("100%", Point::zero(), self.text_style)
             .align_to(&self.bounds, horizontal::Right, vertical::Center)
             .translate(Point::new(-20, 0));
 
-        let header_center = Text::new("Lilka X", Point::zero(), text_style).align_to(
+        bottom_line.draw(display)?;
+        self.draw_time(display, state)?;
+        battery.draw(display)?;
+
+        Ok(())
+    }
+
+    fn draw_time<D>(&self, display: &mut D, state: &UIState) -> Result<(), D::Error>
+    where
+        D: DrawTarget<Color = Rgb565>,
+    {
+        let time = state.clock.timestamp.time();
+
+        let time_text = format!(
+            8,
+            "{:02}:{:02}:{:02}",
+            time.hour(),
+            time.minute(),
+            time.second()
+        );
+        let time_widget = Text::new(&time_text, Point::zero(), self.text_style).align_to(
             &self.bounds,
             horizontal::Center,
             vertical::Center,
         );
 
-        bottom_line.draw(display)?;
-        time.draw(display)?;
-        battery.draw(display)?;
-        header_center.draw(display)?;
-
+        time_widget.draw(display)?;
         Ok(())
     }
 }
