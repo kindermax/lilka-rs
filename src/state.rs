@@ -1,4 +1,4 @@
-pub const BUTTON_CHANNEL_SIZE: usize = 10;
+pub const UI_CHANNEL_SIZE: usize = 10;
 
 // Define button events
 #[derive(Copy, Clone, Debug)]
@@ -11,4 +11,11 @@ pub enum ButtonEvent {
     B,
     C,
     D,
+}
+
+// UI events include button presses and periodic ticks
+#[derive(Copy, Clone, Debug)]
+pub enum UIEvent {
+    Button(ButtonEvent),
+    Tick,
 }
