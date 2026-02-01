@@ -1222,10 +1222,17 @@ version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0c84ee7f197eca9a86c6fd6cb771e55eb991632f15f2bc3ca6ec838929e6e78"
 dependencies = [
+ "jiff-tzdb",
  "proc-macro2",
  "quote",
  "syn 2.0.114",
 ]
+
+[[package]]
+name = "jiff-tzdb"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68971ebff725b9e2ca27a601c5eb38a4c5d64422c4cbab0c535f248087eda5c2"
 
 [[package]]
 name = "js-sys"
@@ -1252,6 +1259,7 @@ dependencies = [
  "critical-section",
  "embassy-embedded-hal",
  "embassy-executor",
+ "embassy-futures",
  "embassy-net",
  "embassy-sync 0.7.2",
  "embassy-time",
