@@ -74,7 +74,7 @@ impl Header {
 
         let battery = Text::new("100%", Point::zero(), self.text_style)
             .align_to(&self.bounds, horizontal::Right, vertical::Center)
-            .translate(Point::new(-20, 0));
+            .translate(Point::new(-25, 0));
 
         bottom_line.draw(display)?;
         self.draw_clock(display, state)?;
@@ -88,8 +88,8 @@ impl Header {
     where
         D: DrawTarget<Color = Rgb565>,
     {
-        let icon_area = Rectangle::new(self.bounds.top_left + Point::new(10, 5), Size::new(20, 20));
-        let center = icon_area.top_left + Point::new(10, 18);
+        let icon_area = Rectangle::new(self.bounds.top_left + Point::new(5, 2), Size::new(35, 25));
+        let center = icon_area.top_left + Point::new(20, 18);
         let style = PrimitiveStyle::with_stroke(self.color, 1);
 
         // Clear the icon area so stale pixels from previous frame are gone
@@ -116,8 +116,8 @@ impl Header {
 
         if !state.wifi_connected {
             Line::new(
-                icon_area.top_left + Point::new(2, 2),
-                icon_area.top_left + Point::new(18, 18),
+                icon_area.top_left + Point::new(10, 2),
+                icon_area.top_left + Point::new(28, 18),
             )
             .into_styled(PrimitiveStyle::with_stroke(Rgb565::RED, 1))
             .draw(display)?;

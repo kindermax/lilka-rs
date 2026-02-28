@@ -12,8 +12,8 @@ use static_cell::StaticCell;
 
 use crate::mk_static;
 
-const SSID: &str = "***REMOVED***";
-const PASSWORD: &str = "***REMOVED***";
+const SSID: &str = "";
+const PASSWORD: &str = "";
 
 // Static storage for network stack pointer - accessible from other tasks
 // Safety: Stack is initialized once and never moved. Access is read-only after init.
