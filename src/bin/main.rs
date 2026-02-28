@@ -21,6 +21,7 @@ use lilka_rs::services::ntp_task;
 use lilka_rs::services::{network_task, ClockService, NetworkService};
 use lilka_rs::state::{UIEvent, UI_CHANNEL_SIZE};
 use lilka_rs::ui::screens::MenuScreen;
+use lilka_rs::ui::widgets::Header;
 use lilka_rs::ui::{Screen, Transition, UIState};
 
 extern crate alloc;
@@ -106,11 +107,13 @@ async fn ui_task(
     mut display: LilkaDisplay,
     receiver: Receiver<'static, CriticalSectionRawMutex, UIEvent, UI_CHANNEL_SIZE>,
 ) {
+    let header = Header::new(display.bounding_box());
     let mut stack: Vec<Box<dyn Screen>> = Vec::new();
     stack.push(Box::new(MenuScreen::new(display.bounding_box())));
 
     let mut state = UIState::default();
 
+    header.draw(&mut display, &state).unwrap();
     if let Some(screen) = stack.last_mut() {
         screen.draw(&mut display, &state);
     }
@@ -150,6 +153,9 @@ async fn ui_task(
             }
             Transition::Stay => {}
         }
+
+        // Header is drawn once here — no need for screens to manage it
+        header.draw(&mut display, &state).unwrap();
 
         if let Some(screen) = stack.last_mut() {
             screen.draw(&mut display, &state);

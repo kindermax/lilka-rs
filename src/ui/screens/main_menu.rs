@@ -1,7 +1,6 @@
 use crate::display::LilkaDisplay;
 use crate::state::ButtonEvent;
 use crate::ui::screens::{InfoScreen, WifiScreen};
-use crate::ui::widgets::Header;
 use crate::ui::{Screen, Transition, UIState};
 use alloc::boxed::Box;
 use embedded_graphics::primitives::Rectangle;
@@ -52,7 +51,6 @@ pub type MainMenuType = Menu<
 
 pub struct MenuScreen {
     menu: MainMenuType,
-    header: Header,
     selected_idx: usize,
     display_bounds: Rectangle,
     initial_draw: bool,
@@ -74,7 +72,6 @@ impl MenuScreen {
 
         Self {
             menu,
-            header: Header::new(display_bounds),
             selected_idx: 0,
             display_bounds,
             initial_draw: true,
@@ -121,29 +118,30 @@ impl Screen for MenuScreen {
         );
 
         if self.initial_draw {
-            display.clear(Rgb565::BLACK).unwrap();
-            self.header.draw(display, state).unwrap();
-            
+            // Clear only the content area below the header, not the full display
+            let content_area = Rectangle::new(
+                Point::new(0, 30),
+                Size::new(
+                    self.display_bounds.size.width,
+                    self.display_bounds.size.height - 30,
+                ),
+            );
+            display.fill_solid(&content_area, Rgb565::BLACK).unwrap();
+
             let mut menu_display = crate::menu::MenuDisplay::new(display, menu_area);
             self.menu.update(&menu_display);
             self.menu.draw(&mut menu_display).unwrap();
-            
+
             self.initial_draw = false;
             self.menu_dirty = false;
-        } else {
-            self.header.draw_clock(display, state).unwrap();
-            self.header.draw_wifi(display, state).unwrap();
+        } else if self.menu_dirty {
+            display.fill_solid(&menu_area, Rgb565::BLACK).unwrap();
 
-            if self.menu_dirty {
-                // Clear only the menu area
-                display.fill_solid(&menu_area, Rgb565::BLACK).unwrap();
-                
-                let mut menu_display = crate::menu::MenuDisplay::new(display, menu_area);
-                self.menu.update(&menu_display);
-                self.menu.draw(&mut menu_display).unwrap();
-                
-                self.menu_dirty = false;
-            }
+            let mut menu_display = crate::menu::MenuDisplay::new(display, menu_area);
+            self.menu.update(&menu_display);
+            self.menu.draw(&mut menu_display).unwrap();
+
+            self.menu_dirty = false;
         }
     }
 
