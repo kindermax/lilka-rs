@@ -55,6 +55,7 @@ impl Screen for WifiScreen {
             self.initial_draw = false;
         } else {
             self.header.draw_clock(display, state).unwrap();
+            self.header.draw_wifi(display, state).unwrap();
         }
     }
 

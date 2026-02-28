@@ -92,6 +92,11 @@ impl Header {
         let center = icon_area.top_left + Point::new(10, 18);
         let style = PrimitiveStyle::with_stroke(self.color, 1);
 
+        // Clear the icon area so stale pixels from previous frame are gone
+        icon_area
+            .into_styled(PrimitiveStyle::with_fill(Rgb565::BLACK))
+            .draw(display)?;
+
         // Draw dot at the bottom
         embedded_graphics::primitives::Circle::new(center - Point::new(1, 1), 3)
             .into_styled(PrimitiveStyle::with_fill(self.color))
@@ -110,7 +115,6 @@ impl Header {
         }
 
         if !state.wifi_connected {
-            // Draw a cross
             Line::new(
                 icon_area.top_left + Point::new(2, 2),
                 icon_area.top_left + Point::new(18, 18),
