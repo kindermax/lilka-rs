@@ -1282,6 +1282,8 @@ dependencies = [
  "log",
  "mipidsi",
  "smoltcp",
+ "sntpc",
+ "sntpc-net-embassy",
  "static_cell",
 ]
 
@@ -1664,6 +1666,25 @@ dependencies = [
  "cfg-if",
  "heapless 0.8.0",
  "managed",
+]
+
+[[package]]
+name = "sntpc"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3334dc3b0fc8775d320764f947eec3dd5e63d15117b6bde6305989b3558134ef"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
+name = "sntpc-net-embassy"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7ee9f9a51937a08ff1774451fa09df22c049475f1f2549275f5be0125a7bd00"
+dependencies = [
+ "embassy-net",
+ "sntpc",
 ]
 
 [[package]]
