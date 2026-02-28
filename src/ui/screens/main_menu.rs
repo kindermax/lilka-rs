@@ -131,8 +131,8 @@ impl Screen for MenuScreen {
             self.initial_draw = false;
             self.menu_dirty = false;
         } else {
-            // Always update the clock (it has its own background clearing for text)
             self.header.draw_clock(display, state).unwrap();
+            self.header.draw_wifi(display, state).unwrap();
 
             if self.menu_dirty {
                 // Clear only the menu area
