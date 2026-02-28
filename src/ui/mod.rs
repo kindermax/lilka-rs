@@ -39,5 +39,5 @@ pub struct Clock {
 
 #[derive(Default)]
 pub struct UIState {
-    pub clock: Clock,
+    pub wifi_connected: bool,
 }
