@@ -3,8 +3,8 @@ use embedded_graphics::mono_font::iso_8859_10::FONT_10X20;
 use embedded_graphics::{
     mono_font::MonoTextStyle,
     pixelcolor::Rgb565,
-    prelude::{DrawTarget, Point, Primitive, RgbColor, Size},
-    primitives::{Line, PrimitiveStyle, Rectangle},
+    prelude::{Angle, DrawTarget, Point, Primitive, RgbColor, Size},
+    primitives::{Arc, Line, PrimitiveStyle, Rectangle},
     text::Text,
     Drawable,
 };
@@ -12,9 +12,11 @@ use embedded_layout::{
     align::{horizontal, vertical, Align},
     View,
 };
+use esp_println::println;
 use jiff::tz::TimeZone;
 
 use crate::format;
+use crate::services::ClockService;
 use crate::ui::UIState;
 
 pub struct Header {
@@ -32,7 +34,7 @@ impl Header {
             .text_color(color)
             .background_color(Rgb565::BLACK)
             .build();
-            
+
         Self {
             color,
             text_style,
@@ -76,16 +78,56 @@ impl Header {
 
         bottom_line.draw(display)?;
         self.draw_clock(display, state)?;
+        self.draw_wifi(display, state)?;
         battery.draw(display)?;
 
         Ok(())
     }
 
-    pub fn draw_clock<D>(&self, display: &mut D, state: &UIState) -> Result<(), D::Error>
+    pub fn draw_wifi<D>(&self, display: &mut D, state: &UIState) -> Result<(), D::Error>
     where
         D: DrawTarget<Color = Rgb565>,
     {
-        let time = state.clock.timestamp.to_zoned(TimeZone::UTC);
+        let icon_area = Rectangle::new(self.bounds.top_left + Point::new(10, 5), Size::new(20, 20));
+        let center = icon_area.top_left + Point::new(10, 18);
+        let style = PrimitiveStyle::with_stroke(self.color, 1);
+
+        // Draw dot at the bottom
+        embedded_graphics::primitives::Circle::new(center - Point::new(1, 1), 3)
+            .into_styled(PrimitiveStyle::with_fill(self.color))
+            .draw(display)?;
+
+        // Draw 3 curves
+        for r in [6i32, 10i32, 14i32] {
+            Arc::new(
+                center - Point::new(r, r),
+                r as u32 * 2,
+                Angle::from_degrees(225.0),
+                Angle::from_degrees(90.0),
+            )
+            .into_styled(style)
+            .draw(display)?;
+        }
+
+        if !state.wifi_connected {
+            // Draw a cross
+            Line::new(
+                icon_area.top_left + Point::new(2, 2),
+                icon_area.top_left + Point::new(18, 18),
+            )
+            .into_styled(PrimitiveStyle::with_stroke(Rgb565::RED, 1))
+            .draw(display)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn draw_clock<D>(&self, display: &mut D, _state: &UIState) -> Result<(), D::Error>
+    where
+        D: DrawTarget<Color = Rgb565>,
+    {
+        let timestamp = ClockService::get_current_time();
+        let time = timestamp.to_zoned(TimeZone::UTC);
 
         let time_text = format!(
             8,

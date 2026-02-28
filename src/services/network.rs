@@ -10,14 +10,7 @@ use esp_println::println;
 use esp_radio::wifi::{ClientConfig, ModeConfig, ScanConfig, WifiController, WifiEvent};
 use static_cell::StaticCell;
 
-macro_rules! mk_static {
-    ($t:ty,$val:expr) => {{
-        static STATIC_CELL: StaticCell<$t> = StaticCell::new();
-        #[deny(unused_attributes)]
-        let x = STATIC_CELL.uninit().write(($val));
-        x
-    }};
-}
+use crate::mk_static;
 
 const SSID: &str = "chilla";
 const PASSWORD: &str = "40454540";
