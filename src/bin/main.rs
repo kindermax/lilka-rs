@@ -11,12 +11,14 @@ use embassy_time::{Duration, Timer};
 
 use embedded_graphics::prelude::Dimensions;
 use esp_backtrace as _;
+use esp_println::println;
 use log::info;
 
 use lilka_rs::board::Board;
 use lilka_rs::display::LilkaDisplay;
 use lilka_rs::input::{get_events, ButtonSet, InputPins};
-use lilka_rs::services::{network_task, ClockService};
+use lilka_rs::services::ntp_task;
+use lilka_rs::services::{network_task, ClockService, NetworkService};
 use lilka_rs::state::{UIEvent, UI_CHANNEL_SIZE};
 use lilka_rs::ui::screens::MenuScreen;
 use lilka_rs::ui::{Screen, Transition, UIState};
@@ -46,9 +48,9 @@ async fn main(spawner: Spawner) {
         d: board.d,
     };
 
-    let clock_service = ClockService::new(board.rtc);
-
+    ClockService::init(board.rtc);
     spawner.spawn(network_task(board.wifi)).unwrap();
+    spawner.spawn(ntp_task("pool.ntp.org")).unwrap();
 
     // Spawn tick task for 1-second UI updates
     spawner.spawn(tick_task(UI_CHANNEL.sender())).unwrap();
@@ -60,11 +62,7 @@ async fn main(spawner: Spawner) {
 
     // Spawn UI System
     spawner
-        .spawn(ui_task(
-            board.display,
-            clock_service,
-            UI_CHANNEL.receiver(),
-        ))
+        .spawn(ui_task(board.display, UI_CHANNEL.receiver()))
         .unwrap();
 
     loop {
@@ -73,9 +71,7 @@ async fn main(spawner: Spawner) {
 }
 
 #[embassy_executor::task]
-async fn tick_task(
-    sender: Sender<'static, CriticalSectionRawMutex, UIEvent, UI_CHANNEL_SIZE>,
-) {
+async fn tick_task(sender: Sender<'static, CriticalSectionRawMutex, UIEvent, UI_CHANNEL_SIZE>) {
     loop {
         Timer::after(Duration::from_secs(1)).await;
         sender.send(UIEvent::Tick).await;
@@ -108,7 +104,6 @@ async fn input_task(
 #[embassy_executor::task]
 async fn ui_task(
     mut display: LilkaDisplay,
-    clock_service: ClockService,
     receiver: Receiver<'static, CriticalSectionRawMutex, UIEvent, UI_CHANNEL_SIZE>,
 ) {
     let mut stack: Vec<Box<dyn Screen>> = Vec::new();
@@ -123,8 +118,10 @@ async fn ui_task(
     loop {
         let event = receiver.receive().await;
 
-        // Always update the clock
-        state.clock.timestamp = clock_service.get_current_time();
+        // Update state
+        state.wifi_connected = NetworkService::stack()
+            .map(|s| s.is_link_up() && s.is_config_up())
+            .unwrap_or(false);
 
         // Only process screen transitions on button events
         let transition = match event {
