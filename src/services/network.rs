@@ -12,8 +12,8 @@ use static_cell::StaticCell;
 
 use crate::mk_static;
 
-const SSID: &str = "";
-const PASSWORD: &str = "";
+const SSID: &str = env!("WIFI_SSID", "WIFI_SSID must be set when compiling");
+const PASSWORD: &str = env!("WIFI_PASSWORD", "WIFI_PASSWORD must be set when compiling");
 
 // Static storage for network stack pointer - accessible from other tasks
 // Safety: Stack is initialized once and never moved. Access is read-only after init.

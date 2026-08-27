@@ -20,6 +20,20 @@ esp-rs-setup
 code .
 ```
 
+## Wi-Fi credentials
+
+Wi-Fi credentials are supplied at compile time and must not be committed:
+
+```sh
+cp .env.example .env
+# Edit .env, then load it into the current shell.
+source .env
+cargo build
+```
+
+The generated firmware contains these values, so do not distribute firmware
+images built with real credentials.
+
 
 ## Flush firmware
 
